@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application-specific
+
+# Logs (keep directory structure but ignore content)
+logs/*.log
+logs/session_*.log
+logs/chat_*.log
+!logs/.gitkeep
+
+# Configuration (keep template but ignore user config)
+config.ini
+config.json
+
+# VPN configurations (may contain sensitive data)
+ovpns/*.ovpn
+!ovpns/.gitkeep
+
+# Audio files and temporary data
+*.wav
+*.mp3
+*.flac
+*.tmp
+*.cache
+
+# Application logs and runtime files
+groq_whisperer.log
+launcher.log
+nul
+
+# Windows batch file artifacts
+*.bat.log
+
+# Backup and duplicate files
+*-Copy.py
+*-Copy*.py
+*_backup.py
+*_backup_*.py
+2025-*.txt
+
+# Development and testing files
+test_*.py
+debug_*.py
+temp_*.py

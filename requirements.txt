@@ -1,0 +1,25 @@
+# Core dependencies for Groq Whisperer application
+
+# Groq API client
+groq
+
+# Rich text and beautiful UI components
+rich>=12.0.0,<14.0.0
+
+# Keyboard input handling
+keyboard
+
+# Numerical computing - compatible with numba
+numpy>=1.24.0,<2.3.0
+
+# Audio processing
+pyaudio
+
+# GUI automation for auto-paste
+pyautogui
+
+# Clipboard operations
+pyperclip
+
+# Voice Activity Detection
+webrtcvad-wheels

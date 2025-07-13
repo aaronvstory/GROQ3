@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(set GROQ_API_KEY=test_key)",
+      "Bash(python:*)",
+      "Bash(timeout:*)",
+      "Bash(dir:*)",
+      "Bash(ls:*)",
+      "Bash(copy groq3new.py groq3new_backup.py)",
+      "Bash(copy groq3new_fixed.py groq3new.py)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(echo:*)",
+      "Bash(uv:*)",
+      "Bash(del test_menu.py)",
+      "Bash(groq3new.bat)",
+      "Bash(set GROQ_API_KEY=test_key_for_testing)",
+      "Bash(groq3new-direct.bat:*)",
+      "Bash(cmd /c:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git init:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}
