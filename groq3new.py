@@ -786,11 +786,27 @@ class AudioProcessor:
         
         try:
             ambient_levels = []
-            for _ in range(100): # 2 seconds of audio
-                audio_chunk = stream.read(160, exception_on_overflow=False)
-                audio_data = np.frombuffer(audio_chunk, dtype=np.int16)
-                ambient_levels.append(np.abs(audio_data).mean())
-                await asyncio.sleep(0.02)
+            for i in range(100): # 2 seconds of audio
+                try:
+                    # Check if stream is still active
+                    if not stream.is_active():
+                        logging.warning("Audio stream became inactive during calibration")
+                        break
+                        
+                    audio_chunk = stream.read(160, exception_on_overflow=False)
+                    audio_data = np.frombuffer(audio_chunk, dtype=np.int16)
+                    ambient_levels.append(np.abs(audio_data).mean())
+                    await asyncio.sleep(0.02)
+                except OSError as e:
+                    if e.errno == -9999:  # Unanticipated host error
+                        logging.error(f"Audio device error during calibration: {e}")
+                        break
+                    else:
+                        logging.warning(f"Audio stream error during calibration: {e}")
+                        break
+                except Exception as e:
+                    logging.warning(f"Error during calibration: {e}")
+                    break
                 
         finally:
             try:
@@ -813,21 +829,50 @@ class AudioProcessor:
         chunk_duration_ms = 20  # VAD supports 10, 20, 30 ms
         chunk_size = int(TARGET_SAMPLE_RATE * chunk_duration_ms / 1000)
         
-        # Try to open stream with retry logic
+        # Validate input device before attempting to record
+        try:
+            if self.input_device_index is not None:
+                device_info = self._pyaudio.get_device_info_by_index(self.input_device_index)
+                if device_info['maxInputChannels'] == 0:
+                    logging.warning(f"Input device {self.input_device_index} has no input channels, using default")
+                    self.input_device_index = None
+        except Exception as e:
+            logging.warning(f"Input device validation failed: {e}, using default device")
+            self.input_device_index = None
+        
+        # Try to open stream with retry logic and device validation
         stream = None
-        for attempt in range(2):
+        for attempt in range(3):  # Increased retry attempts
             try:
+                # Check if the input device is still available
+                if self.input_device_index is not None:
+                    device_info = self._pyaudio.get_device_info_by_index(self.input_device_index)
+                    if device_info['maxInputChannels'] == 0:
+                        logging.warning(f"Input device {self.input_device_index} has no input channels")
+                        self.input_device_index = None
+                
                 stream = self._pyaudio.open(
                     format=pyaudio.paInt16, channels=1, rate=TARGET_SAMPLE_RATE,
                     input=True, frames_per_buffer=chunk_size, input_device_index=self.input_device_index
                 )
+                
+                # Verify the stream is working
+                if not stream.is_active():
+                    stream.close()
+                    raise AudioProcessingError("Stream opened but is not active")
+                    
                 break
+                
             except Exception as e:
-                if attempt == 0:
-                    logging.warning(f"Recording stream failed on first try: {e}. Retrying in 1 second...")
-                    time.sleep(1)
+                if attempt < 2:
+                    logging.warning(f"Recording stream failed on attempt {attempt + 1}: {e}. Retrying in {attempt + 1} second(s)...")
+                    time.sleep(attempt + 1)
+                    # Try default device on second attempt
+                    if attempt == 1:
+                        self.input_device_index = None
+                        logging.info("Trying default input device...")
                 else:
-                    raise AudioProcessingError(f"Failed to open recording stream: {e}")
+                    raise AudioProcessingError(f"Failed to open recording stream after {attempt + 1} attempts: {e}")
         
         if not stream:
             raise AudioProcessingError("Failed to open recording stream")
@@ -853,6 +898,12 @@ class AudioProcessor:
                 last_update_time = 0
                 while is_recording:
                     try:
+                        # Check if stream is still active before reading
+                        if not stream or not stream.is_active():
+                            logging.warning("Audio stream is no longer active, stopping recording")
+                            is_recording = False
+                            break
+                            
                         audio_chunk = stream.read(chunk_size, exception_on_overflow=False)
                         audio_level = np.abs(np.frombuffer(audio_chunk, dtype=np.int16)).mean()
                         
@@ -895,6 +946,28 @@ class AudioProcessor:
                         
                         await asyncio.sleep(0.01)
                         
+                    except OSError as e:
+                        if e.errno == -9999:  # Unanticipated host error
+                            logging.error(f"Audio device error (host error): {e}")
+                            # Try to reinitialize the audio stream
+                            try:
+                                stream.stop_stream()
+                                stream.close()
+                                logging.info("Attempting to reinitialize audio stream...")
+                                stream = self._pyaudio.open(
+                                    format=pyaudio.paInt16, channels=1, rate=TARGET_SAMPLE_RATE,
+                                    input=True, frames_per_buffer=chunk_size, input_device_index=self.input_device_index
+                                )
+                                logging.info("Audio stream reinitialized successfully")
+                                continue  # Try recording again
+                            except Exception as reinit_error:
+                                logging.error(f"Failed to reinitialize audio stream: {reinit_error}")
+                                is_recording = False
+                                break
+                        else:
+                            logging.error(f"Audio stream error: {e}")
+                            is_recording = False
+                            break
                     except Exception as e:
                         logging.error(f"Error in recording loop: {e}", exc_info=True)
                         is_recording = False
@@ -912,7 +985,8 @@ class AudioProcessor:
             # Always ensure the stream is properly closed
             try:
                 if stream:
-                    stream.stop_stream()
+                    if stream.is_active():
+                        stream.stop_stream()
                     stream.close()
                     logging.debug("Audio stream closed successfully")
             except Exception as e:
